@@ -136,22 +136,19 @@ def write_data_to_csv(filename, dylos_data):
     print("open the file")
     timestamp = datetime.datetime.now()
     timestamp = "'" + timestamp.strftime('%Y-%m-%d %H:%M:%S') + "'"
-    if len(dylos_data) >= 2:  # the data is fine, write the dylos data
-        newdata = [2, timestamp, dylos_data[0], dylos_data[1]]
-	#newdata = [USER_DATA["ID"],timestamp , dylos_data[0], dylos_data[1]]
+    if len(dylos_data) >= 2 and dylos_data[0].isdigit() and dylos_data[1].isdigit() :  # the data is fine, write the dylos data
+        newdata = [USER_DATA["ID"], timestamp, dylos_data[0], dylos_data[1]]
         a = csv.writer(f)
         a.writerows([newdata])
         f.close()
     elif dylos_data == ['']:  # the connection was establish but there is no data reading. print none.
-        newdata = [2, timestamp, 0, 0]
-	#newdata = [USER_DATA["ID"], timestamp, "none", "none"]
+        newdata = [USER_DATA["ID"], timestamp, "none", "none"]
         a = csv.writer(f)
         a.writerows([newdata])
         print("the data was null!, Dylos is disconnected or off")
         f.close()
     else:  # there is no connection / other problem. print error.
-        newdata = [2, timestamp, -1, -1]
-        #newdata = [USER_DATA["ID"],timestamp, "error", "error"]
+        newdata = [USER_DATA["ID"],timestamp, "error", "error"]
         a = csv.writer(f)
         a.writerows([newdata])
         print("there was an error!, maybe the cable is unplugged")
@@ -192,37 +189,77 @@ def removeOldFile(daysAgo,today):
         os.remove(str(oldDateFilePath))
     
 
+def createAndSendQuery(tmpList,cnx):
+    cursor = cnx.cursor()
+    #init lists
+    backupData = [] #backup the data in case of failure to send it 
+    readerData = [] #contains the valid data
+    failureData = [] #contains the invalid data
+    #every query will contains "UPDATE_TIME" data lines or the current size of the data list
+    size = min(len(tmpList),UPDATE_TIME)
+    for x in range(0,size):
+        tmpData = tmpList.pop(0)
+        sendData = tmpData[:]
+        backupData.append(tmpData)
+        #mark that's this data line is a valid line
+        if sendData[len(sendData)-1].isdigit() :
+            table = "DYLOS_READER"
+        #mark that's this data line is empty - meaning no available data
+        elif sendData[len(sendData)-1] == "none" :
+            sendData[2] = "1"
+            sendData[3] = "'" + "NO AVAILABLE DATA" +  "'"
+            table = "DYLOS_FAILURE"
+        #mark that's this data line is an invalid line
+        else: #AS tmpData[len(sendData)-1] == "error"
+            sendData[2] = "2"
+            sendData[3] = "'" + "INVALID DATA" + "'"
+            table = "DYLOS_FAILURE"
+        dataString = "(" + ',' .join(map(str,sendData)) + ")"
+        #insert the data line to the appropriate list
+        if table == "DYLOS_READER" :
+            readerData.append(dataString)
+        else:  
+            failureData.append(dataString)
+    #creates the query and sends it
+    try:
+        if len(readerData) > 0 :
+            insertReader = "INSERT INTO DYLOS_READING VALUES " + ',' .join(map(str,readerData))
+            cursor.execute(insertReader)
+        if len(failureData) > 0 :
+            insertFailure = "INSERT INTO DYLOS_FAILURE VALUES " + ',' .join(map(str,failureData))
+            cursor.execute(insertFailure)
+        cnx.commit()
+    except (Exception):
+        # if INSERT failed - return data to tmpList and try again
+        tmpList = backupData + tmpList
+    return datetime.datetime.now()
+
+def connectToServer(config,cnx):
+    try:
+        cnx = mysql.connector.connect(**config)
+    except mysql.connector.Error as err:
+        print(err) #TODO - handle connecting error
+    return cnx
 
 #AS function that send data from temporary list to SQL server
-def sendData(tmpList,config):
+def sendData(tmpList,config,cnx):
+    #start counting the time of the send process
     startTime = datetime.datetime.now()
-    startTime = startTime.second
+    #connecting to SQL server
+    cnx = connectToServer(config,cnx)
     midTime = datetime.datetime.now()
-    while len(tmpList) != 0 and ((midTime.second - startTime) % 60) < 35 :
-        try:
-           cnx = mysql.connector.connect(**config)
-        except mysql.connector.Error as err:
-            print(err)
+    #get in the while loop only if there is data to send and available time
+    while len(tmpList) != 0 and ((midTime.second - startTime.second) % 60) < 35 :
+        #checking if there is a connection to the SQL server, if not try again
+      	if cnx is None or not cnx.is_connected():
+            cnx = connectToServer(config,cnx)
             midTime = datetime.datetime.now()
-            continue
-        else:
-            cursor = cnx.cursor()
-            tmpData = tmpList.pop(0)
-            dataString = ',' .join(map(str,tmpData))
-            insert = "INSERT INTO try VALUES(" + dataString + ")"
-            print insert
-            try:
-                cursor.execute(insert)
-                cnx.commit()
-            except (Exception):
-                print tmpList
-                tmpList.insert(0,tmpData)
-                print tmpList
-                print "Shir gonna Crazy"
-            # if INSERT failed - return data to tmpList and try again
-            midTime = datetime.datetime.now()
-        cnx.close()
-    timeToSleep = 40 - ((midTime.second - startTime) % 60)
+      	    continue
+        else: #there is a connection to the SQL server
+      	    midTime = createAndSendQuery(tmpList,cnx)
+    cnx.close()
+    #sleep the left time until the period time is passed
+    timeToSleep = 40 - ((midTime.second - startTime.second) % 60)
     timeToSleep = float(timeToSleep)
     time.sleep(timeToSleep) 
 
@@ -238,15 +275,15 @@ try:
       'raise_on_warnings': True,
     }
     mode = "else"  # if "test", run without sensor (dylos)
-    global USER_DATA, SENSOR_DATA
-
+    global USER_DATA, SENSOR_DATA, UPDATE_TIME
+    UPDATE_TIME = 1
+    cnx = None
     serialPortName = "/dev/ttyUSB0"  # RaspberryPi default serial connection name
     print("try to find serial port")
     serialPortName =find_available_serial_ports()
     ser = False
     USER_DATA = import_configuration("DylosConf")
     SENSOR_DATA = import_configuration("SensorBasicConf")
-    updatePeriodTime = 1
 
     if mode != "test":  # if not test
         if serialPortName != []:
@@ -272,7 +309,7 @@ try:
     print("file date " + str(file_date))
     print(USER_DATA["folder"])
     FileName = create_file(USER_DATA["folder"])
-    tmpList = [] #AS tmp list for saving data until send to SQL server
+    tmpList = [] #AS temp list for saving data until send to it to the SQL server
     # the main loop: request data and assign it to the file, then sleep for 40 sec (total 50 sec in every cycle)
     # if something went wrong the app will crash
     while True:  # create a new file every day
@@ -289,9 +326,9 @@ try:
         data = request_data()
         print ("the data is ", data)
         serverData = write_data_to_csv(FileName,data)
-        tmpList.append(serverData) #AS write each data to line on the tmpFile
-        if len(tmpList) >= updatePeriodTime: #AS after Constant (15) number of data reads, start to send to the SQL server
-            sendData(tmpList,config) #AS send the data on the tmpFile to the SQL server
+        tmpList.append(serverData) #AS adding each data line to the temp list
+        if len(tmpList) >= UPDATE_TIME: #AS after Constant (15) number of data reads, starts to send them to the SQL server
+            sendData(tmpList,config,cnx) #AS sends the data lines to the SQL server
         else:
             time.sleep(40)
 

@@ -28,7 +28,7 @@ else:
     USER_DATA = ""
 
 if USER_DATA=="":
-    USER_DATA = {"ID": "default", "LOCATION": "default",
+    USER_DATA = {"ID": "default","network": "default","modem": "other",
                  "folder": "/home/pi/Dylos", "sensor type": "dylos"}
 else:
     with open(conf_location, 'rb') as handle:
@@ -42,16 +42,34 @@ for key in USER_DATA:
         USER_DATA[key] = r
     else:
         print("the current data is: " + str(USER_DATA.items()))
-        print("Do you want to change the " + key + " value? y/n. if you are finished enter: exit")
-        read = (str(raw_input())).upper()
-        if read == "EXIT":
-            break
-        elif read == "Y":
-            print("please enter the %s value" % key)
-            r = str(raw_input("The new value is: "))
-            USER_DATA[key] = r
+        print("Do you want to change the " + key + " value? y/n.")
+        while True:
+	    read = (str(raw_input())).upper()
+            if read == "N":
+                break
+            elif read == "Y":
+                print("please enter the %s value" % key)
+                r = str(raw_input("The new value is: "))
+                USER_DATA[key] = r
+                break
+	    else:
+	        print("incorrect answer, please type y/n")
+	        continue
 
-if USER_DATA["sensor type"]=="dylos":
+APN = {"Orange": "uinternet", "Cellcom": "internetg", "Pelephone": "internet.pelephone.net.il", "Hot": "net.hotm", "Golan": "internet.golantelecom.net.il", "012": "uwap.orange.co.il"}
+updateInternetStr = "sudo sed -i 's/\"IP\".*/\"IP\",\"" + APN[USER_DATA["network"]] + "\"/' /etc/wvdial.conf"
+os.system(updateInternetStr)
+
+ 
+if USER_DATA["modem"] != "other":
+    modemConfPath = "/home/pi/Dylos/" + USER_DATA["modem"] + ".conf"
+    if os.path.isfile(modemConfPath):
+        os.system("sudo cp " + modemConfPath + " /etc/usb_modeswitch.conf")
+    else: 
+        print("missing modem configuration file, please supply a configuration file and try again.Abort")
+        exit(1)
+
+if USER_DATA["sensor type"] == "dylos":
     sensor_values = dict(sensor_type="dylos",
                          sensor_values="Dylos ID,Location,Date,Pm 0.5-2.5,Pm > 2.5",
                          serial_connection="serial_port, baudrate=9600, parity=serial.PARITY_NONE, "
