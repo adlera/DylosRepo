@@ -9,7 +9,7 @@ import datetime
 import os
 import pickle
 import mysql.connector 
-
+import smtplib
 
 def open_serial_connection(serial_port=str):
     """
@@ -99,7 +99,6 @@ def create_file(folder):
     If the file already exists, doesn't create a new one.
     :return: file name
     """
-
     day = datetime.datetime.now()
     date = day.date()
     ''' checks if the folder exists. if not, create one'''
@@ -109,7 +108,6 @@ def create_file(folder):
     os.chdir(folder)
     ''' create a new csv file and append column header'''
     filename = str(USER_DATA["ID"]) + "_" + str(date) + ".csv"
-
     if os.path.isfile(filename):  # the file already exists, only print "append new data"
         f = open(filename, 'a')
         print("opened the file and append new data")
@@ -223,7 +221,7 @@ def createAndSendQuery(tmpList,cnx):
     #creates the query and sends it
     try:
         if len(readerData) > 0 :
-            insertReader = "INSERT INTO DYLOS_READING VALUES " + ',' .join(map(str,readerData))
+            insertReader = "INSERT INTO DYLOS_READER VALUES " + ',' .join(map(str,readerData))
             cursor.execute(insertReader)
         if len(failureData) > 0 :
             insertFailure = "INSERT INTO DYLOS_FAILURE VALUES " + ',' .join(map(str,failureData))
@@ -238,6 +236,8 @@ def connectToServer(config,cnx):
     try:
         cnx = mysql.connector.connect(**config)
     except mysql.connector.Error as err:
+        #sendMail()
+        #print "Mail sent to admin - SQL server doesnt response"
         print(err) #TODO - handle connecting error
     return cnx
 
@@ -257,11 +257,30 @@ def sendData(tmpList,config,cnx):
       	    continue
         else: #there is a connection to the SQL server
       	    midTime = createAndSendQuery(tmpList,cnx)
-    cnx.close()
+    if not cnx is None:
+        cnx.close() 
     #sleep the left time until the period time is passed
     timeToSleep = 40 - ((midTime.second - startTime.second) % 60)
     timeToSleep = float(timeToSleep)
     time.sleep(timeToSleep) 
+
+
+
+def sendMail():
+    server = smtplib.SMTP("smtp.gmail.com",587)
+    server.ehlo()
+    server.starttls()
+    server.ehlo()
+    server.login('dylosreader@gmail.com','dylosreader1')
+    msg = "Attention Please - There is a problem with the SQL server - not response, please fix it. send by Dylos: "
+    print "1" 
+    server.sendmail('dylosreader@gmail.com','shirzv87@gmail.com',msg)
+    print "2"
+
+def connectToInternet():
+    if USER_DATA["modem"] != "other":
+        os.system("sudo usb_modeswitch -c /etc/usb_modeswitch.conf &")
+    os.system("sudo wvdial 3gconnect")
 
 '''
 now - the main function!
@@ -284,7 +303,8 @@ try:
     ser = False
     USER_DATA = import_configuration("DylosConf")
     SENSOR_DATA = import_configuration("SensorBasicConf")
-
+    connectToInternet()
+    time.sleep(10)
     if mode != "test":  # if not test
         if serialPortName != []:
             print("start: try to open serial connection for the first time")

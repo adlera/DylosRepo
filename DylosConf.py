@@ -28,7 +28,7 @@ else:
     USER_DATA = ""
 
 if USER_DATA=="":
-    USER_DATA = {"ID": "default","network": "default","modem": "other",
+    USER_DATA = {"ID": "default","network": "default","modem": "other","mail": "default",
                  "folder": "/home/pi/Dylos", "sensor type": "dylos"}
 else:
     with open(conf_location, 'rb') as handle:
