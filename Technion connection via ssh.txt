@@ -1,0 +1,47 @@
+download MobaXterm interface at http://mobaxterm.mobatek.net/download-home-edition.html
+
+Connect through one's tx/t2 account to a technionic server:
+1. 
+1.1 Open MobaXterm and start a new session.
+1.2 Define the server tx.technion.ac.il (/t2.technion.ac.il) and the user (e.g. eyael)
+Once this session is saved, it can be opened from a list of saved sessions
+2. Feed your password
+3. Run to enter the ssh directory: cd .ssh
+4. 
+4.1 Run to see a list of files including the the hidden files: ls -al
+This will result in the following:
+[eyael@techunix ~/.ssh]$ ls -al
+total 32
+drwx--S---  2 eyael users 4096 Apr 12 10:16 .
+drwx--s--x 20 eyael users 4096 Apr 12 10:20 ..
+-rw-------  1 eyael users  615 Apr 12 10:16 authorized_keys2
+-rw-------  1 eyael users  668 Apr 12 10:16 id_dsa
+-rw-r--r--  1 eyael users  615 Apr 12 10:16 id_dsa.pub
+-rw-r--r--  1 eyael users  226 Apr 12 10:15 known_hosts
+-rw-r--r--  1 eyael users  226 Feb 24  2002 known_hosts.old
+-rw-------  1 eyael users 1024 Feb 24  2002 prng_seed
+[eyael@techunix ~/.ssh]$
+
+4.2 To see the content of the known_hosts file run: cat known_hosts
+
+[eyael@techunix ~/.ssh]$ cat kn
+known_hosts      known_hosts.old
+[eyael@techunix ~/.ssh]$ cat known_hosts
+aluf,132.68.1.86 ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAIEAw7XbPLyZZ3dM3tMlY0JkRsj16puR8wNI+b/gyX8EJA+CBNzp8p8dp4EZvOWdbOUnLav6mx6M8F47SAWbdX0yOWp7B9Bep4XnzFPeC0pUemxl+gbA3g59kLZ9LAQsI8ln285Wa81s6YAIsjPb0mXmEPuACWwTH4Qse9EWHqRrGLk=
+[eyael@techunix ~/.ssh]$ cat k
+known_hosts      known_hosts.old
+[eyael@techunix ~/.ssh]$ cat known_hosts.old
+aluf,132.68.7.11 ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAIEA09wfpaImZqOiutFFfiJnuFjnVkxbGLhDRVWdwLW4uzz2sy1dR0MAL9hwBz6OlsW3GGot6E1is3ll/VhS55Kbonuh3du4e7DX1xew38QkI7jFGiyEcVO1gBbqV7iWFxPttOz0xBn+bIDlvlNNFpFVY/ARpkTGAYZh+zt/QF6nr/M=
+[eyael@techunix ~/.ssh]$
+
+5. If the IP address of aluf is not updated, trying to access by <ssh aluf> command will result in a message that the host key for aluf system has changed.
+In that case, 
+5.1 change the known_hosts from the ssh directory e.g.:   mv known_hosts known_hosts.old
+5.2 Attemp to access aluf server again:   ssh aluf
+5.3 A connection will be established one you click "Yes" to approve, creating a new known_hosts file with the updated IP.
+
+6. Once in Aluf, open firebox browser:   firefox&  (running only firefox will paralize the command line of the open terminal)
+7. Access phpAdmin: http://132.68.226.244/phpmyadmin
+8. Enter to our SQL database through User: APMoD and the password: will be provided on request (mail to: eyael@tx.tehcnion.ac.il)
+9. To logout aluf run: exit
+10. close session window in the MobaXterm
